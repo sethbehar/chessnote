@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Chess Notation Trainer</title>
+  <style>
+    :root{
+      --light:#f6faf5;
+      --dark:#2e7d32;
+      --bg:#0f172a;
+      --panel:#111827;
+      --ink:#e5e7eb;
+      --accent:#22c55e;
+      --danger:#ef4444;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, "Helvetica Neue", Arial;
+      color:var(--ink);
+      background: radial-gradient(1200px 800px at 20% 0%, #0b1228 0%, #0a1023 40%, #070c1a 100%);
+    }
+    header{max-width:1100px; margin: 24px auto 12px; padding: 0 16px; display:flex; align-items:center; gap:16px; flex-wrap:wrap; justify-content:space-between;}
+    .title{font-weight:800; letter-spacing:.25px; font-size: clamp(18px, 2.6vw, 28px)}
+    .controls{display:flex; gap:12px; align-items:center; flex-wrap:wrap}
+    .pill{display:inline-flex; align-items:center; gap:6px; padding:8px 12px; border-radius:14px; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.08);}
+    .segmented{display:inline-grid; grid-template-columns:1fr 1fr; border-radius:12px; overflow:hidden; border:1px solid rgba(255,255,255,.12)}
+    .segmented button{padding:8px 12px; background:transparent; color:var(--ink); border:0; cursor:pointer}
+    .segmented button.active{background:rgba(255,255,255,.12)}
+    .btn{cursor:pointer; border:1px solid rgba(255,255,255,.12); background:rgba(255,255,255,.06); color:var(--ink); padding:10px 14px; border-radius:12px; font-weight:600}
+    .btn.primary{background:linear-gradient(180deg, #16a34a, #15803d)}
+    .btn.stop{background:linear-gradient(180deg, #b91c1c, #991b1b)}
+    .hud{max-width:1100px; margin: 0 auto; padding: 0 16px 16px; display:flex; gap:10px; flex-wrap:wrap; align-items:center}
+    .stat{background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.08); border-radius:12px; padding:10px 12px; min-width:120px}
+    .stat .k{font-size:12px; opacity:.8}
+    .stat .v{font-weight:800; font-size:20px}
+    .target{margin-left:auto; padding:10px 14px; border-radius:12px; border:1px dashed rgba(255,255,255,.18); background: rgba(34,197,94,.08); color:#bbf7d0; font-weight:700;}
+    .board-wrap{ max-width:1100px; margin: 0 auto 26px; padding: 0 16px; }
+    .board{margin:auto; width:min(94vw, 80vh); aspect-ratio:1 / 1; border-radius:16px; overflow:hidden; display:grid; grid-template-columns: repeat(8, 1fr); grid-template-rows: repeat(8, 1fr);}
+    .square{position:relative; display:flex; align-items:center; justify-content:center;}
+    .light{ background:var(--light) }
+    .dark{ background:var(--dark) }
+    .square .coord{ position:absolute; bottom:6px; right:8px; font-size:11px; font-weight:700; opacity:.22; pointer-events:none; color:#000 }
+    .dark .coord{ color: #fff; opacity:.22 }
+    .coord.hidden{display:none}
+    .square.correct{ box-shadow: inset 0 0 0 4px var(--accent) }
+    .square.wrong{  box-shadow: inset 0 0 0 4px var(--danger) }
+    .flash{position: fixed; inset:0; display:flex; align-items:center; justify-content:center; background: rgba(0,0,0,.75); color:#eafff1; font-size: clamp(40px, 10vw, 140px); font-weight: 900; letter-spacing: 2px; opacity:0; transform: scale(.96); transition: opacity .2s ease, transform .2s ease; z-index:5; pointer-events:none}
+    .flash.show{opacity:1; transform: scale(1)}
+  </style>
+</head>
+<body>
+  <header>
+    <div class="title">♟️ Chess Notation Trainer</div>
+    <div class="controls">
+      <div class="pill">View:
+        <div class="segmented" id="viewToggle">
+          <button data-view="white" class="active">White</button>
+          <button data-view="black">Black</button>
+        </div>
+      </div>
+      <div class="pill">Coords:
+        <div class="segmented" id="coordsToggle">
+          <button data-show="on" class="active">On</button>
+          <button data-show="off">Off</button>
+        </div>
+      </div>
+      <button id="startBtn" class="btn primary">Start</button>
+      <button id="stopBtn" class="btn stop" disabled>Stop</button>
+      <button id="resetBtn" class="btn">Reset Score</button>
+    </div>
+  </header>
+
+  <div class="hud">
+    <div class="stat"><div class="k">Correct</div><div class="v" id="correct">0</div></div>
+    <div class="stat"><div class="k">Attempts</div><div class="v" id="attempts">0</div></div>
+    <div class="stat"><div class="k">Accuracy</div><div class="v" id="accuracy">0%</div></div>
+    <div class="target" id="targetHUD">Target: —</div>
+  </div>
+
+  <div class="board-wrap">
+    <div id="board" class="board"></div>
+  </div>
+
+  <div id="flash" class="flash">e4</div>
+
+  <script>
+  (function(){
+    const boardEl = document.getElementById('board');
+    const flashEl = document.getElementById('flash');
+    const startBtn = document.getElementById('startBtn');
+    const stopBtn = document.getElementById('stopBtn');
+    const resetBtn = document.getElementById('resetBtn');
+    const viewToggle = document.getElementById('viewToggle');
+    const coordsToggle = document.getElementById('coordsToggle');
+    const targetHUD = document.getElementById('targetHUD');
+    const correctEl = document.getElementById('correct');
+    const attemptsEl = document.getElementById('attempts');
+    const accuracyEl = document.getElementById('accuracy');
+
+    const FILES = ['a','b','c','d','e','f','g','h'];
+    const RANKS = [1,2,3,4,5,6,7,8];
+
+    const STATE = { running:false, view:'white', coords:true, target:null, correct:0, attempts:0 };
+
+    function buildBoard(){
+      boardEl.innerHTML = '';
+      const rows = STATE.view==='white'?[8,7,6,5,4,3,2,1]:[1,2,3,4,5,6,7,8];
+      const cols = STATE.view==='white'?FILES:[...FILES].reverse();
+      for(let r=0;r<8;r++){
+        for(let c=0;c<8;c++){
+          const coord = cols[c]+rows[r];
+          const sq = document.createElement('div');
+          sq.className = 'square '+(((r+c)%2===0)?'dark':'light');
+          sq.dataset.square = coord;
+          const label = document.createElement('div');
+          label.className = 'coord'+(STATE.coords?'':' hidden');
+          label.textContent = coord;
+          sq.appendChild(label);
+          boardEl.appendChild(sq);
+        }
+      }
+    }
+
+    function randomSquare(){ return FILES[Math.floor(Math.random()*8)]+RANKS[Math.floor(Math.random()*8)]; }
+    function setTarget(coord){ STATE.target = coord; targetHUD.textContent = 'Target: '+coord; }
+    function flashTarget(){ flashEl.textContent = STATE.target; flashEl.classList.add('show'); setTimeout(()=>flashEl.classList.remove('show'),700); }
+    function updateHUD(){ correctEl.textContent = STATE.correct; attemptsEl.textContent = STATE.attempts; accuracyEl.textContent = STATE.attempts?Math.round(STATE.correct/STATE.attempts*100)+'%':'0%'; }
+    function nextRound(){ if(!STATE.running) return; boardEl.querySelectorAll('.square').forEach(s=>s.classList.remove('correct','wrong')); setTarget(randomSquare()); flashTarget(); }
+
+    boardEl.addEventListener('click',e=>{
+      const sq=e.target.closest('.square'); if(!sq||!STATE.running) return;
+      STATE.attempts++;
+      if(sq.dataset.square===STATE.target){ STATE.correct++; sq.classList.add('correct'); }
+      else { sq.classList.add('wrong'); const c = boardEl.querySelector(`[data-square="${STATE.target}"]`); if(c) c.classList.add('correct'); }
+      updateHUD(); setTimeout(nextRound,600);
+    });
+
+    startBtn.onclick=()=>{STATE.running=true;startBtn.disabled=true;stopBtn.disabled=false;nextRound();};
+    stopBtn.onclick=()=>{STATE.running=false;startBtn.disabled=false;stopBtn.disabled=true;};
+    resetBtn.onclick=()=>{STATE.correct=0;STATE.attempts=0;updateHUD();targetHUD.textContent='Target: —';boardEl.querySelectorAll('.square').forEach(s=>s.classList.remove('correct','wrong'));};
+
+    viewToggle.addEventListener('click',e=>{const btn=e.target.closest('button');if(!btn) return;STATE.view=btn.dataset.view;viewToggle.querySelectorAll('button').forEach(b=>b.classList.toggle('active',b===btn));buildBoard();if(STATE.running&&STATE.target) flashTarget();});
+    coordsToggle.addEventListener('click',e=>{const btn=e.target.closest('button');if(!btn) return;STATE.coords=(btn.dataset.show==='on');coordsToggle.querySelectorAll('button').forEach(b=>b.classList.toggle('active',b===btn));buildBoard();});
+
+    buildBoard(); updateHUD();
+  })();
+  </script>
+</body>
+</html>
