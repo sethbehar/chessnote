@@ -6,13 +6,11 @@
   <title>Chess Notation Trainer</title>
   <style>
     :root{
-      --light:#f6faf5;
-      --dark:#2e7d32;
-      --bg:#0f172a;
-      --panel:#111827;
+      --light:#f6faf5;  /* white-ish */
+      --dark:#2e7d32;   /* green */
       --ink:#e5e7eb;
-      --accent:#22c55e;
-      --danger:#ef4444;
+      --accent:#22c55e; /* correct (green) */
+      --danger:#ef4444; /* wrong (red) */
     }
     *{box-sizing:border-box}
     html,body{height:100%}
@@ -32,23 +30,35 @@
     .btn{cursor:pointer; border:1px solid rgba(255,255,255,.12); background:rgba(255,255,255,.06); color:var(--ink); padding:10px 14px; border-radius:12px; font-weight:600}
     .btn.primary{background:linear-gradient(180deg, #16a34a, #15803d)}
     .btn.stop{background:linear-gradient(180deg, #b91c1c, #991b1b)}
+
     .hud{max-width:1100px; margin: 0 auto; padding: 0 16px 16px; display:flex; gap:10px; flex-wrap:wrap; align-items:center}
     .stat{background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.08); border-radius:12px; padding:10px 12px; min-width:120px}
     .stat .k{font-size:12px; opacity:.8}
     .stat .v{font-weight:800; font-size:20px}
-    .target{margin-left:auto; padding:10px 14px; border-radius:12px; border:1px dashed rgba(255,255,255,.18); background: rgba(34,197,94,.08); color:#bbf7d0; font-weight:700;}
+    .target{margin-left:auto; padding:10px 14px; border-radius:12px; border:1px dashed rgba(255,255,255,.18); background: rgba(34,197,94,.08); color:#bbf7d0; font-weight:700; letter-spacing:.4px}
+    .target.pulse{animation: pulse 500ms ease}
+    @keyframes pulse{ 0%{transform:scale(0.98)} 50%{transform:scale(1.02)} 100%{transform:scale(1)} }
+
     .board-wrap{ max-width:1100px; margin: 0 auto 26px; padding: 0 16px; }
     .board{margin:auto; width:min(94vw, 80vh); aspect-ratio:1 / 1; border-radius:16px; overflow:hidden; display:grid; grid-template-columns: repeat(8, 1fr); grid-template-rows: repeat(8, 1fr);}
-    .square{position:relative; display:flex; align-items:center; justify-content:center;}
+    .square{position:relative; display:flex; align-items:center; justify-content:center; user-select:none}
     .light{ background:var(--light) }
     .dark{ background:var(--dark) }
+
     .square .coord{ position:absolute; bottom:6px; right:8px; font-size:11px; font-weight:700; opacity:.22; pointer-events:none; color:#000 }
     .dark .coord{ color: #fff; opacity:.22 }
     .coord.hidden{display:none}
-    .square.correct{ box-shadow: inset 0 0 0 4px var(--accent) }
-    .square.wrong{  box-shadow: inset 0 0 0 4px var(--danger) }
-    .flash{position: fixed; inset:0; display:flex; align-items:center; justify-content:center; background: rgba(0,0,0,.75); color:#eafff1; font-size: clamp(40px, 10vw, 140px); font-weight: 900; letter-spacing: 2px; opacity:0; transform: scale(.96); transition: opacity .2s ease, transform .2s ease; z-index:5; pointer-events:none}
-    .flash.show{opacity:1; transform: scale(1)}
+
+    /* Overlay highlight (not outline) */
+    .square.correct::after, .square.wrong::after{ content:""; position:absolute; inset:0; border-radius:0; pointer-events:none; }
+    .square.correct::after{ background: rgba(34,197,94,.45); }
+    .square.wrong::after{  background: rgba(239,68,68,.45); }
+
+    /* TEXT-ONLY FLASH */
+    .flash{ position:fixed; inset:0; display:flex; align-items:center; justify-content:center; pointer-events:none;
+            color:#eafff1; font-weight:900; letter-spacing:2px; text-shadow: 0 2px 8px rgba(0,0,0,.55);
+            font-size: clamp(40px, 10vw, 140px); opacity:0; transform:scale(.96); transition: opacity .18s ease, transform .18s ease; }
+    .flash.show{ opacity:1; transform:scale(1) }
   </style>
 </head>
 <body>
@@ -57,19 +67,19 @@
     <div class="controls">
       <div class="pill">View:
         <div class="segmented" id="viewToggle">
-          <button data-view="white" class="active">White</button>
-          <button data-view="black">Black</button>
+          <button type="button" data-view="white" class="active">White</button>
+          <button type="button" data-view="black">Black</button>
         </div>
       </div>
       <div class="pill">Coords:
         <div class="segmented" id="coordsToggle">
-          <button data-show="on" class="active">On</button>
-          <button data-show="off">Off</button>
+          <button type="button" data-show="on" class="active">On</button>
+          <button type="button" data-show="off">Off</button>
         </div>
       </div>
-      <button id="startBtn" class="btn primary">Start</button>
-      <button id="stopBtn" class="btn stop" disabled>Stop</button>
-      <button id="resetBtn" class="btn">Reset Score</button>
+      <button id="startBtn" class="btn primary" type="button">Start</button>
+      <button id="stopBtn" class="btn stop" type="button" disabled>Stop</button>
+      <button id="resetBtn" class="btn" type="button">Reset Score</button>
     </div>
   </header>
 
@@ -81,15 +91,14 @@
   </div>
 
   <div class="board-wrap">
-    <div id="board" class="board"></div>
+    <div id="board" class="board" aria-label="Chessboard for notation practice"></div>
   </div>
 
-  <div id="flash" class="flash">e4</div>
+  <div id="flash" class="flash" aria-hidden="true">e4</div>
 
   <script>
   (function(){
     const boardEl = document.getElementById('board');
-    const flashEl = document.getElementById('flash');
     const startBtn = document.getElementById('startBtn');
     const stopBtn = document.getElementById('stopBtn');
     const resetBtn = document.getElementById('resetBtn');
@@ -99,53 +108,157 @@
     const correctEl = document.getElementById('correct');
     const attemptsEl = document.getElementById('attempts');
     const accuracyEl = document.getElementById('accuracy');
+    const flashEl = document.getElementById('flash');
 
     const FILES = ['a','b','c','d','e','f','g','h'];
     const RANKS = [1,2,3,4,5,6,7,8];
 
     const STATE = { running:false, view:'white', coords:true, target:null, correct:0, attempts:0 };
 
+    // Build board in the correct visual order for each view.
     function buildBoard(){
       boardEl.innerHTML = '';
-      const rows = STATE.view==='white'?[8,7,6,5,4,3,2,1]:[1,2,3,4,5,6,7,8];
-      const cols = STATE.view==='white'?FILES:[...FILES].reverse();
+      const filesWhite = FILES;                // left→right: a..h
+      const filesBlack = [...FILES].reverse(); // left→right: h..a
+      const rowsWhiteTopToBottom = [8,7,6,5,4,3,2,1];
+      const rowsBlackTopToBottom = [1,2,3,4,5,6,7,8];
+
+      const topToBottom = (STATE.view==='white') ? rowsWhiteTopToBottom : rowsBlackTopToBottom;
+      const leftToRight = (STATE.view==='white') ? filesWhite : filesBlack;
+
       for(let r=0;r<8;r++){
         for(let c=0;c<8;c++){
-          const coord = cols[c]+rows[r];
+          const coord = leftToRight[c] + String(topToBottom[r]);
           const sq = document.createElement('div');
-          sq.className = 'square '+(((r+c)%2===0)?'dark':'light');
+          // Color based on TRUE coordinate parity so a1 is always green
+          const fIdx = coord.charCodeAt(0) - 97; // a->0
+          const kIdx = Number(coord[1]) - 1;     // 1->0
+          const isDark = ((fIdx + kIdx) % 2 === 0); // a1 => 0+0 even => dark/green
+          sq.className = 'square ' + (isDark ? 'dark' : 'light');
           sq.dataset.square = coord;
           const label = document.createElement('div');
-          label.className = 'coord'+(STATE.coords?'':' hidden');
+          label.className = 'coord' + (STATE.coords ? '' : ' hidden');
           label.textContent = coord;
           sq.appendChild(label);
           boardEl.appendChild(sq);
         }
       }
+      runTests();
     }
 
-    function randomSquare(){ return FILES[Math.floor(Math.random()*8)]+RANKS[Math.floor(Math.random()*8)]; }
-    function setTarget(coord){ STATE.target = coord; targetHUD.textContent = 'Target: '+coord; }
-    function flashTarget(){ flashEl.textContent = STATE.target; flashEl.classList.add('show'); setTimeout(()=>flashEl.classList.remove('show'),700); }
-    function updateHUD(){ correctEl.textContent = STATE.correct; attemptsEl.textContent = STATE.attempts; accuracyEl.textContent = STATE.attempts?Math.round(STATE.correct/STATE.attempts*100)+'%':'0%'; }
-    function nextRound(){ if(!STATE.running) return; boardEl.querySelectorAll('.square').forEach(s=>s.classList.remove('correct','wrong')); setTarget(randomSquare()); flashTarget(); }
+    function randomSquare(){
+      return FILES[Math.floor(Math.random()*8)] + RANKS[Math.floor(Math.random()*8)];
+    }
+    function setTarget(coord){
+      STATE.target = coord;
+      targetHUD.textContent = 'Target: ' + coord.toUpperCase();
+      targetHUD.classList.remove('pulse');
+      void targetHUD.offsetWidth; // restart animation
+      targetHUD.classList.add('pulse');
+    }
+    function updateHUD(){
+      correctEl.textContent = STATE.correct;
+      attemptsEl.textContent = STATE.attempts;
+      accuracyEl.textContent = STATE.attempts ? Math.round(STATE.correct/STATE.attempts*100) + '%' : '0%';
+    }
+    function clearHighlights(){
+      boardEl.querySelectorAll('.square').forEach(s=>s.classList.remove('correct','wrong'));
+    }
+    function flashTarget(){
+      if(!STATE.target) return;
+      flashEl.textContent = STATE.target.toUpperCase();
+      flashEl.classList.add('show');
+      setTimeout(function(){ flashEl.classList.remove('show'); }, 650);
+    }
+    function nextRound(){
+      if(!STATE.running) return;
+      clearHighlights();
+      setTarget(randomSquare());
+      flashTarget();
+    }
 
-    boardEl.addEventListener('click',e=>{
-      const sq=e.target.closest('.square'); if(!sq||!STATE.running) return;
+    boardEl.addEventListener('click', function(e){
+      const sq = e.target.closest('.square');
+      if(!sq || !STATE.running) return;
       STATE.attempts++;
-      if(sq.dataset.square===STATE.target){ STATE.correct++; sq.classList.add('correct'); }
-      else { sq.classList.add('wrong'); const c = boardEl.querySelector(`[data-square="${STATE.target}"]`); if(c) c.classList.add('correct'); }
-      updateHUD(); setTimeout(nextRound,600);
+      if(sq.dataset.square === STATE.target){
+        STATE.correct++;
+        sq.classList.add('correct');
+      } else {
+        sq.classList.add('wrong');
+        const correctSq = boardEl.querySelector('[data-square="'+STATE.target+'"]');
+        if(correctSq) correctSq.classList.add('correct');
+      }
+      updateHUD();
+      setTimeout(nextRound, 600);
     });
 
-    startBtn.onclick=()=>{STATE.running=true;startBtn.disabled=true;stopBtn.disabled=false;nextRound();};
-    stopBtn.onclick=()=>{STATE.running=false;startBtn.disabled=false;stopBtn.disabled=true;};
-    resetBtn.onclick=()=>{STATE.correct=0;STATE.attempts=0;updateHUD();targetHUD.textContent='Target: —';boardEl.querySelectorAll('.square').forEach(s=>s.classList.remove('correct','wrong'));};
+    startBtn.onclick = function(){ STATE.running = true; startBtn.disabled = true; stopBtn.disabled = false; nextRound(); };
+    stopBtn.onclick  = function(){ STATE.running = false; startBtn.disabled = false; stopBtn.disabled = true; };
+    resetBtn.onclick = function(){ STATE.correct = 0; STATE.attempts = 0; updateHUD(); targetHUD.textContent = 'Target: —'; clearHighlights(); };
 
-    viewToggle.addEventListener('click',e=>{const btn=e.target.closest('button');if(!btn) return;STATE.view=btn.dataset.view;viewToggle.querySelectorAll('button').forEach(b=>b.classList.toggle('active',b===btn));buildBoard();if(STATE.running&&STATE.target) flashTarget();});
-    coordsToggle.addEventListener('click',e=>{const btn=e.target.closest('button');if(!btn) return;STATE.coords=(btn.dataset.show==='on');coordsToggle.querySelectorAll('button').forEach(b=>b.classList.toggle('active',b===btn));buildBoard();});
+    viewToggle.addEventListener('click', function(e){
+      const btn = e.target.closest('button'); if(!btn) return;
+      STATE.view = btn.dataset.view;
+      [].forEach.call(viewToggle.querySelectorAll('button'), function(b){ b.classList.toggle('active', b===btn); });
+      buildBoard();
+    });
+    coordsToggle.addEventListener('click', function(e){
+      const btn = e.target.closest('button'); if(!btn) return;
+      STATE.coords = (btn.dataset.show === 'on');
+      [].forEach.call(coordsToggle.querySelectorAll('button'), function(b){ b.classList.toggle('active', b===btn); });
+      buildBoard();
+    });
 
-    buildBoard(); updateHUD();
+    // Keyboard helper: re-flash current target with "F"
+    window.addEventListener('keydown', function(e){
+      if((e.key||'').toLowerCase() === 'f'){
+        if(STATE.running && STATE.target){ flashTarget(); }
+      }
+    });
+
+    /*********************
+     * Self-tests (console)
+     * No try/catch to avoid environments that wrap with document.write.
+     *********************/
+    function assert(name, cond){
+      if(cond){ console.log('[PASS]', name); }
+      else{ console.error('[FAIL]', name); }
+    }
+    function runTests(){
+      // Color invariants for corners
+      const a1 = boardEl.querySelector('[data-square="a1"]');
+      const a8 = boardEl.querySelector('[data-square="a8"]');
+      const h1 = boardEl.querySelector('[data-square="h1"]');
+      const h8 = boardEl.querySelector('[data-square="h8"]');
+      assert('a1 is dark/green', a1 && a1.classList.contains('dark'));
+      assert('a8 is light/white', a8 && a8.classList.contains('light'));
+      assert('h1 is light/white', h1 && h1.classList.contains('light'));
+      assert('h8 is dark/green',  h8 && h8.classList.contains('dark'));
+
+      // Exactly 32 dark squares
+      const darkCount = boardEl.querySelectorAll('.square.dark').length;
+      assert('32 dark squares', darkCount === 32);
+
+      // Orientation checks
+      const topRow = Array.prototype.slice.call(boardEl.children, 0, 8).map(function(n){return n.dataset.square});
+      const bottomRow = Array.prototype.slice.call(boardEl.children, 56, 64).map(function(n){return n.dataset.square});
+      const expTopWhite = ['a8','b8','c8','d8','e8','f8','g8','h8'];
+      const expBotWhite = ['a1','b1','c1','d1','e1','f1','g1','h1'];
+      const expTopBlack = ['h1','g1','f1','e1','d1','c1','b1','a1'];
+      const expBotBlack = ['h8','g8','f8','e8','d8','c8','b8','a8'];
+      if(STATE.view==='white'){
+        assert('White view: top row a8..h8', JSON.stringify(topRow)===JSON.stringify(expTopWhite));
+        assert('White view: bottom row a1..h1', JSON.stringify(bottomRow)===JSON.stringify(expBotWhite));
+      } else {
+        assert('Black view: top row h1..a1', JSON.stringify(topRow)===JSON.stringify(expTopBlack));
+        assert('Black view: bottom row h8..a8', JSON.stringify(bottomRow)===JSON.stringify(expBotBlack));
+      }
+    }
+
+    // Init
+    buildBoard();
+    updateHUD();
   })();
   </script>
 </body>
